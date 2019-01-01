@@ -21,7 +21,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <JTEncode.h>
+#include "JTEncode.h"
 
 #include <string.h>
 #include <ctype.h>
@@ -29,20 +29,44 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega16U4__)
-#include <avr/pgmspace.h>
-#endif
-
-#include "Arduino.h"
-
 // Define an upper bound on the number of glyphs.  Defining it this
 // way allows adding characters without having to update a hard-coded
 // upper bound.
 #define NGLYPHS         (sizeof(fsq_code_table)/sizeof(fsq_code_table[0]))
 
+
+  uint8_t jt_code(char);
+  uint8_t wspr_code(char);
+  uint8_t gray_code(uint8_t);
+  void jt_message_prep(char *);
+  void wspr_message_prep(char *, char *, uint8_t);
+  void jt65_bit_packing(char *, uint8_t *);
+  void jt9_bit_packing(char *, uint8_t *);
+  void wspr_bit_packing(uint8_t *);
+  void jt65_interleave(uint8_t *);
+  void jt9_interleave(uint8_t *);
+  void wspr_interleave(uint8_t *);
+  void jt9_packbits(uint8_t *, uint8_t *);
+  void jt_gray_code(uint8_t *, uint8_t);
+  void jt65_merge_sync_vector(uint8_t *, uint8_t *);
+  void jt9_merge_sync_vector(uint8_t *, uint8_t *);
+  void jt4_merge_sync_vector(uint8_t *, uint8_t *);
+  void wspr_merge_sync_vector(uint8_t *, uint8_t *);
+  void convolve(uint8_t *, uint8_t *, uint8_t, uint8_t);
+  void rs_encode(uint8_t *, uint8_t *);
+  void encode_rs_int(void *,data_t *, data_t *);
+  void free_rs_int(void *);
+  void * init_rs_int(int, int, int, int, int, int);
+  uint8_t crc8(const char *);
+  void * rs_inst;
+  char callsign[7];
+  char locator[5];
+  uint8_t power;
+
+
 /* Public Class Members */
 
-JTEncode::JTEncode(void)
+void jtinit(void)
 {
   // Initialize the Reed-Solomon encoder
   rs_inst = (struct rs *)(intptr_t)init_rs_int(6, 0x43, 3, 1, 51, 0);
@@ -59,7 +83,7 @@ JTEncode::JTEncode(void)
  *  Ensure that you pass a uint8_t array of size JT65_SYMBOL_COUNT to the method.
  *
  */
-void JTEncode::jt65_encode(const char * msg, uint8_t * symbols)
+void jt65_encode(const char * msg, uint8_t * symbols)
 {
   char message[14];
   memset(message, 0, 14);
@@ -103,7 +127,7 @@ void JTEncode::jt65_encode(const char * msg, uint8_t * symbols)
  *  Ensure that you pass a uint8_t array of size JT9_SYMBOL_COUNT to the method.
  *
  */
-void JTEncode::jt9_encode(const char * msg, uint8_t * symbols)
+void jt9_encode(const char * msg, uint8_t * symbols)
 {
   char message[14];
   memset(message, 0, 14);
@@ -152,7 +176,7 @@ void JTEncode::jt9_encode(const char * msg, uint8_t * symbols)
  *  Ensure that you pass a uint8_t array of size JT4_SYMBOL_COUNT to the method.
  *
  */
-void JTEncode::jt4_encode(const char * msg, uint8_t * symbols)
+void jt4_encode(const char * msg, uint8_t * symbols)
 {
   char message[14];
   memset(message, 0, 14);
@@ -195,7 +219,7 @@ void JTEncode::jt4_encode(const char * msg, uint8_t * symbols)
  *  Ensure that you pass a uint8_t array of size WSPR_SYMBOL_COUNT to the method.
  *
  */
-void JTEncode::wspr_encode(const char * call, const char * loc, const uint8_t dbm, uint8_t * symbols)
+void wspr_encode(const char * call, const char * loc, const uint8_t dbm, uint8_t * symbols)
 {
   char call_[7];
   char loc_[5];
@@ -238,7 +262,7 @@ void JTEncode::wspr_encode(const char * call, const char * loc, const uint8_t db
  *  plus 5 characters to the method. Terminated in 0xFF.
  *
  */
-void JTEncode::fsq_encode(const char * from_call, const char * message, uint8_t * symbols)
+void fsq_encode(const char * from_call, const char * message, uint8_t * symbols)
 {
   char tx_buffer[155];
   char * tx_message;
@@ -266,13 +290,13 @@ void JTEncode::fsq_encode(const char * from_call, const char * message, uint8_t 
 
       // Check each element of the varicode table to see if we've found the
       // character we're trying to send.
-      fch = pgm_read_byte(&fsq_code_table[i].ch);
+      fch = fsq_code_table[i].ch;
 
       if(fch == ch)
       {
           // Found the character, now fetch the varicode chars
-          vcode1 = pgm_read_byte(&(fsq_code_table[i].var[0]));
-          vcode2 = pgm_read_byte(&(fsq_code_table[i].var[1]));
+          vcode1 = (fsq_code_table[i].var[0]);
+          vcode2 = (fsq_code_table[i].var[1]);
 
           // Transmit the appropriate tone per a varicode char
           if(vcode2 == 0)
@@ -325,7 +349,7 @@ void JTEncode::fsq_encode(const char * from_call, const char * message, uint8_t 
  *  plus 5 characters to the method. Terminated in 0xFF.
  *
  */
-void JTEncode::fsq_dir_encode(const char * from_call, const char * to_call, const char cmd, const char * message, uint8_t * symbols)
+void fsq_dir_encode(const char * from_call, const char * to_call, const char cmd, const char * message, uint8_t * symbols)
 {
   char tx_buffer[155];
   char * tx_message;
@@ -359,13 +383,13 @@ void JTEncode::fsq_dir_encode(const char * from_call, const char * to_call, cons
 
       // Check each element of the varicode table to see if we've found the
       // character we're trying to send.
-      fch = pgm_read_byte(&fsq_code_table[i].ch);
+      fch = fsq_code_table[i].ch;
 
       if(fch == ch)
       {
           // Found the character, now fetch the varicode chars
-          vcode1 = pgm_read_byte(&(fsq_code_table[i].var[0]));
-          vcode2 = pgm_read_byte(&(fsq_code_table[i].var[1]));
+          vcode1 = fsq_code_table[i].var[0];
+          vcode2 = fsq_code_table[i].var[1];
 
           // Transmit the appropriate tone per a varicode char
           if(vcode2 == 0)
@@ -406,7 +430,7 @@ void JTEncode::fsq_dir_encode(const char * from_call, const char * to_call, cons
 
 /* Private Class Members */
 
-uint8_t JTEncode::jt_code(char c)
+uint8_t jt_code(char c)
 {
   // Validate the input then return the proper integer code.
   // Return 255 as an error code if the char is not allowed.
@@ -449,7 +473,7 @@ uint8_t JTEncode::jt_code(char c)
   }
 }
 
-uint8_t JTEncode::wspr_code(char c)
+uint8_t wspr_code(char c)
 {
   // Validate the input then return the proper integer code.
   // Return 255 as an error code if the char is not allowed.
@@ -472,12 +496,12 @@ uint8_t JTEncode::wspr_code(char c)
 	}
 }
 
-uint8_t JTEncode::gray_code(uint8_t c)
+uint8_t gray_code(uint8_t c)
 {
   return (c >> 1) ^ c;
 }
 
-void JTEncode::jt_message_prep(char * message)
+void jt_message_prep(char * message)
 {
   uint8_t i;
 
@@ -501,7 +525,7 @@ void JTEncode::jt_message_prep(char * message)
   }
 }
 
-void JTEncode::wspr_message_prep(char * call, char * loc, uint8_t dbm)
+void wspr_message_prep(char * call, char * loc, uint8_t dbm)
 {
   // Callsign validation and padding
   // -------------------------------
@@ -575,7 +599,7 @@ void JTEncode::wspr_message_prep(char * call, char * loc, uint8_t dbm)
   }
 }
 
-void JTEncode::jt65_bit_packing(char * message, uint8_t * c)
+void jt65_bit_packing(char * message, uint8_t * c)
 {
   uint32_t n1, n2, n3;
 
@@ -619,7 +643,7 @@ void JTEncode::jt65_bit_packing(char * message, uint8_t * c)
   c[11] = n3 & 0x003f;
 }
 
-void JTEncode::jt9_bit_packing(char * message, uint8_t * c)
+void jt9_bit_packing(char * message, uint8_t * c)
 {
   uint32_t n1, n2, n3;
 
@@ -679,7 +703,7 @@ void JTEncode::jt9_bit_packing(char * message, uint8_t * c)
   c[12] = 0;
 }
 
-void JTEncode::wspr_bit_packing(uint8_t * c)
+void wspr_bit_packing(uint8_t * c)
 {
   uint32_t n, m;
 
@@ -717,7 +741,7 @@ void JTEncode::wspr_bit_packing(uint8_t * c)
 	c[10] = 0;
 }
 
-void JTEncode::jt65_interleave(uint8_t * s)
+void jt65_interleave(uint8_t * s)
 {
   uint8_t i, j;
   uint8_t d[JT65_ENCODE_COUNT];
@@ -734,7 +758,7 @@ void JTEncode::jt65_interleave(uint8_t * s)
   memcpy(s, d, JT65_ENCODE_COUNT);
 }
 
-void JTEncode::jt9_interleave(uint8_t * s)
+void jt9_interleave(uint8_t * s)
 {
   uint8_t i, j;
   uint8_t d[JT9_BIT_COUNT];
@@ -742,19 +766,13 @@ void JTEncode::jt9_interleave(uint8_t * s)
   // Do the interleave
   for(i = 0; i < JT9_BIT_COUNT; i++)
   {
-    //#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega16U4__)
-    #if defined(__arm__)
     d[jt9i[i]] = s[i];
-    #else
-    j = pgm_read_byte(&jt9i[i]);
-    d[j] = s[i];
-    #endif
   }
 
   memcpy(s, d, JT9_BIT_COUNT);
 }
 
-void JTEncode::wspr_interleave(uint8_t * s)
+void wspr_interleave(uint8_t * s)
 {
   uint8_t d[WSPR_BIT_COUNT];
 	uint8_t rev, index_temp, i, j, k;
@@ -791,7 +809,7 @@ void JTEncode::wspr_interleave(uint8_t * s)
   memcpy(s, d, WSPR_BIT_COUNT);
 }
 
-void JTEncode::jt9_packbits(uint8_t * d, uint8_t * a)
+void jt9_packbits(uint8_t * d, uint8_t * a)
 {
   uint8_t i, k;
   k = 0;
@@ -810,7 +828,7 @@ void JTEncode::jt9_packbits(uint8_t * d, uint8_t * a)
   }
 }
 
-void JTEncode::jt_gray_code(uint8_t * g, uint8_t symbol_count)
+void jt_gray_code(uint8_t * g, uint8_t symbol_count)
 {
   uint8_t i;
 
@@ -820,7 +838,7 @@ void JTEncode::jt_gray_code(uint8_t * g, uint8_t symbol_count)
   }
 }
 
-void JTEncode::jt65_merge_sync_vector(uint8_t * g, uint8_t * symbols)
+void jt65_merge_sync_vector(uint8_t * g, uint8_t * symbols)
 {
   uint8_t i, j = 0;
   const uint8_t sync_vector[JT65_SYMBOL_COUNT] =
@@ -846,7 +864,7 @@ void JTEncode::jt65_merge_sync_vector(uint8_t * g, uint8_t * symbols)
   }
 }
 
-void JTEncode::jt9_merge_sync_vector(uint8_t * g, uint8_t * symbols)
+void jt9_merge_sync_vector(uint8_t * g, uint8_t * symbols)
 {
   uint8_t i, j = 0;
   const uint8_t sync_vector[JT9_SYMBOL_COUNT] =
@@ -870,7 +888,7 @@ void JTEncode::jt9_merge_sync_vector(uint8_t * g, uint8_t * symbols)
   }
 }
 
-void JTEncode::jt4_merge_sync_vector(uint8_t * g, uint8_t * symbols)
+void jt4_merge_sync_vector(uint8_t * g, uint8_t * symbols)
 {
   uint8_t i;
   const uint8_t sync_vector[JT4_SYMBOL_COUNT] =
@@ -891,7 +909,7 @@ void JTEncode::jt4_merge_sync_vector(uint8_t * g, uint8_t * symbols)
 	}
 }
 
-void JTEncode::wspr_merge_sync_vector(uint8_t * g, uint8_t * symbols)
+void wspr_merge_sync_vector(uint8_t * g, uint8_t * symbols)
 {
   uint8_t i;
   const uint8_t sync_vector[WSPR_SYMBOL_COUNT] =
@@ -910,7 +928,7 @@ void JTEncode::wspr_merge_sync_vector(uint8_t * g, uint8_t * symbols)
 	}
 }
 
-void JTEncode::convolve(uint8_t * c, uint8_t * s, uint8_t message_size, uint8_t bit_size)
+void convolve(uint8_t * c, uint8_t * s, uint8_t message_size, uint8_t bit_size)
 {
   uint32_t reg_0 = 0;
   uint32_t reg_1 = 0;
@@ -961,7 +979,7 @@ void JTEncode::convolve(uint8_t * c, uint8_t * s, uint8_t message_size, uint8_t 
   }
 }
 
-void JTEncode::rs_encode(uint8_t * data, uint8_t * symbols)
+void rs_encode(uint8_t * data, uint8_t * symbols)
 {
   // Adapted from wrapkarn.c in the WSJT-X source code
   uint8_t dat1[12];
@@ -992,7 +1010,7 @@ void JTEncode::rs_encode(uint8_t * data, uint8_t * symbols)
   memcpy(symbols, sym, JT65_ENCODE_COUNT);
 }
 
-uint8_t JTEncode::crc8(const char * text)
+uint8_t crc8(const char * text)
 {
   uint8_t crc = '\0';
   uint8_t ch;
@@ -1001,12 +1019,7 @@ uint8_t JTEncode::crc8(const char * text)
   for(i = 0; i < strlen(text); i++)
   {
     ch = text[i];
-    //#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega16U4__)
-    #if defined(__arm__)
     crc = crc8_table[(crc) ^ ch];
-    #else
-    crc = pgm_read_byte(&(crc8_table[(crc) ^ ch]));
-    #endif
     crc &= 0xFF;
   }
 

@@ -8,10 +8,10 @@
 
 #include <string.h>
 #include <stdlib.h>
-#include <JTEncode.h>
+#include "JTEncode.h"
 #include "rs_common.h"
 
-void JTEncode::free_rs_int(void * p)
+void free_rs_int(void * p)
 {
   struct rs *rs = (struct rs *)p;
 
@@ -21,7 +21,7 @@ void JTEncode::free_rs_int(void * p)
   free(rs);
 }
 
-void * JTEncode::init_rs_int(int symsize, int gfpoly, int fcr, int prim,
+void * init_rs_int(int symsize, int gfpoly, int fcr, int prim,
 	int nroots, int pad)
 {
   struct rs *rs;

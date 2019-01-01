@@ -24,8 +24,6 @@
 #include "int.h"
 #include "rs_common.h"
 
-#include "Arduino.h"
-
 #include <stdint.h>
 
 #define JT65_SYMBOL_COUNT                   126
@@ -50,7 +48,7 @@ typedef struct fsq_varicode
 // The FSQ varicode table, based on the FSQ Varicode V3.0
 // document provided by Murray Greenman, ZL1BPU
 
-const Varicode fsq_code_table[] PROGMEM =
+const Varicode fsq_code_table[] = 
 {
   {' ', {00, 00}}, // space
   {'!', {11, 30}},
@@ -159,7 +157,7 @@ const Varicode fsq_code_table[] PROGMEM =
   {8,   {27, 31}}  // BS
 };
 
-const uint8_t crc8_table[] PROGMEM = {
+const uint8_t crc8_table[] = {
     0x00, 0x07, 0x0e, 0x09, 0x1c, 0x1b, 0x12, 0x15, 0x38, 0x3f, 0x36, 0x31,
     0x24, 0x23, 0x2a, 0x2d, 0x70, 0x77, 0x7e, 0x79, 0x6c, 0x6b, 0x62, 0x65,
     0x48, 0x4f, 0x46, 0x41, 0x54, 0x53, 0x5a, 0x5d, 0xe0, 0xe7, 0xee, 0xe9,
@@ -184,7 +182,7 @@ const uint8_t crc8_table[] PROGMEM = {
     0xfa, 0xfd, 0xf4, 0xf3
 };
 
-const uint8_t jt9i[JT9_BIT_COUNT] PROGMEM = {
+const uint8_t jt9i[JT9_BIT_COUNT] = {
   0x00, 0x80, 0x40, 0xc0, 0x20, 0xa0, 0x60, 0x10, 0x90, 0x50, 0x30, 0xb0, 0x70,
   0x08, 0x88, 0x48, 0xc8, 0x28, 0xa8, 0x68, 0x18, 0x98, 0x58, 0x38, 0xb8, 0x78,
   0x04, 0x84, 0x44, 0xc4, 0x24, 0xa4, 0x64, 0x14, 0x94, 0x54, 0x34, 0xb4, 0x74,
@@ -203,42 +201,11 @@ const uint8_t jt9i[JT9_BIT_COUNT] PROGMEM = {
   0x8f, 0x4f, 0x2f, 0xaf, 0x6f, 0x1f, 0x9f, 0x5f, 0x3f, 0xbf, 0x7f
 };
 
-class JTEncode
-{
-public:
-  JTEncode(void);
-  void jt65_encode(const char *, uint8_t *);
-  void jt9_encode(const char *, uint8_t *);
-  void jt4_encode(const char *, uint8_t *);
-  void wspr_encode(const char *, const char *, const uint8_t, uint8_t *);
-  void fsq_encode(const char *, const char *, uint8_t *);
-  void fsq_dir_encode(const char *, const char *, const char, const char *, uint8_t *);
-private:
-  uint8_t jt_code(char);
-  uint8_t wspr_code(char);
-  uint8_t gray_code(uint8_t);
-  void jt_message_prep(char *);
-  void wspr_message_prep(char *, char *, uint8_t);
-  void jt65_bit_packing(char *, uint8_t *);
-  void jt9_bit_packing(char *, uint8_t *);
-  void wspr_bit_packing(uint8_t *);
-  void jt65_interleave(uint8_t *);
-  void jt9_interleave(uint8_t *);
-  void wspr_interleave(uint8_t *);
-  void jt9_packbits(uint8_t *, uint8_t *);
-  void jt_gray_code(uint8_t *, uint8_t);
-  void jt65_merge_sync_vector(uint8_t *, uint8_t *);
-  void jt9_merge_sync_vector(uint8_t *, uint8_t *);
-  void jt4_merge_sync_vector(uint8_t *, uint8_t *);
-  void wspr_merge_sync_vector(uint8_t *, uint8_t *);
-  void convolve(uint8_t *, uint8_t *, uint8_t, uint8_t);
-  void rs_encode(uint8_t *, uint8_t *);
-  void encode_rs_int(void *,data_t *, data_t *);
-  void free_rs_int(void *);
-  void * init_rs_int(int, int, int, int, int, int);
-  uint8_t crc8(const char *);
-  void * rs_inst;
-  char callsign[7];
-  char locator[5];
-  uint8_t power;
-};
+
+void jtinit(void);
+void jt65_encode(const char *, uint8_t *);
+void jt9_encode(const char *, uint8_t *);
+void jt4_encode(const char *, uint8_t *);
+void wspr_encode(const char *, const char *, const uint8_t, uint8_t *);
+void fsq_encode(const char *, const char *, uint8_t *);
+void fsq_dir_encode(const char *, const char *, const char, const char *, uint8_t *);
